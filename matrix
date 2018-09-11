@@ -1,0 +1,479 @@
+# Anne Harris
+# CS344 - 400
+# Program 1 - Matrices
+
+#!bin/bash
+
+# NAME
+#   dims - print the dimentions of a matrix
+# SYNOPSIS
+#   matrix dims [MATRIX]
+# DESCRIPTION
+#   prints the dimentions of the matrix as the number of rows, then number of columns
+# AUTHOR
+#   Written by Anne Harris (harranne@oregonstate.edu)
+function dims(){
+
+# test for num of parameters
+if [ "$#" -ne 1 ]
+then
+	>&2 echo "Error - too many arguments!"
+	return 1
+
+# test if file is readable
+# help from askubunto.com quetions titled:
+# "checking for a file and whether it is readable and writeable"
+elif ! [ -r $datafilepath ]
+then
+	>&2 echo "Error - file not readable!"
+	return 1	
+fi
+
+# row and column count variables
+rowCount=0
+colCount=0
+
+# get the row count
+while read myLine
+do
+	# add one to row count for each line
+	rowCount=$(expr $rowCount + 1)
+done < $datafilepath
+
+# get the column count
+# get first line
+read firstline < "$datafilepath"
+# loop to count each integer
+for i in $firstline
+do
+	colCount=$(expr $colCount + 1)
+done
+
+# print the dimentions
+printf "$rowCount $colCount\n"
+
+return 0
+} 
+
+# NAME
+#   transpose - reflects the elements of matrix along main diagonal
+# SYNOPSIS
+#   matrix transpose [MATRIX]
+# DESCRIPTION
+#   transposes the function vertically, MxN will become NxM
+# AUTHOR
+#   Written by Anne Harris (harranne@oregonstate.edu)
+function transpose(){
+
+# test for num of parameters
+if [ "$#" -ne 1 ]
+then
+	>&2 echo "Error - too many arguments!"
+	return 1
+# test if file is readable
+elif ! [ -r $datafilepath ]
+then
+	>&2 echo "Error - file not readable!"
+	return 1	
+fi
+
+# find number of columns
+# count variables
+colCount=0
+
+# get the column count
+# get first line
+read firstline < "$datafilepath"
+# loop to count each integer within line
+for i in $firstline
+do
+	colCount=$(expr $colCount + 1)
+done
+
+# temporary file
+tempCol="tempcolfile"
+tempRow="tempRowfile"
+
+# remove temporary files for exit, interup, hangup or terminate
+trap "rm -f $tempCol$$ $tempRow$$" EXIT INT HUP TERM
+
+# loop through each column
+for i in `seq 1 $colCount`
+do
+	# get the ith column number and put it in temporary file
+	cut -f $i $datafilepath >> $tempCol$$
+	# replace new lines with tabs
+	cat $tempCol$$ | tr '\n' '\t' >> "$tempRow$$"
+	# remove extra tab at end of file
+	# solution found on stack overflow titled:
+	# "how can i remove the last character of a file in unix"
+	printf '%s\n' '$' 's/.$//' wq | ex $tempRow$$
+	# clear tempCol file
+	echo -n "" > $tempCol$$
+	cat $tempCol$$
+done
+
+# display transposed matrix
+cat $tempRow$$
+
+return 0
+
+}
+
+# NAME
+#   mean - averages each column in a matrix
+# SYNOPSIS
+#   matrix mean [MATRIX]
+# DESCRIPTION
+#   will take MxN matrix and return an 1xN row vector, first element is the 
+#   mean of column 1, second element is mean of column 2, 
+#   n element is mean of column n
+# AUTHOR
+#   Written by Anne Harris (harranne@oregonstate.edu)
+function mean(){
+# test for num of parameters
+if [ "$#" -ne 1 ]
+then
+	>&2 echo "Error - too many arguments!"
+	return 1
+# test if file is readable
+elif ! [ -r $datafilepath ]
+then
+	>&2 echo "Error - file not readable!"
+	return 1	
+fi
+
+# count variables
+cCount=0
+rCount=0
+
+# get column count
+read firstline < "$datafilepath"
+for i in $firstline
+do
+	cCount=$(expr $cCount + 1)
+done
+
+# get the row count
+while read myLine
+do
+	# add rows 
+	rCount=$(expr $rCount + 1)
+done < $datafilepath
+
+# temp variables and files
+linesum=0
+lineavg=0
+temp="tempfile"
+outfile="outfilevec"
+
+# remove temporary files for exit, interup, hangup or terminate
+trap "rm -f $temp$$ $outfile$$" EXIT INT HUP TERM
+
+# go through each column and average
+for i in `seq 1 $cCount`
+do
+	# get num from each row and put it in temp file
+	cut -f $i $datafilepath >> $temp$$
+	# each number is on it's own line
+	# add number to running sum
+	while read num
+	do
+		linesum=$(expr $linesum + $num)
+	done < $temp$$
+	# calculate average
+	# forumla from program instructions
+	lineavg=$(( ($linesum+($rCount/2) * (($linesum > 0)*2 - 1))/$rCount ))
+	echo -n "" > $temp$$
+	
+	# helped formated the printf statement from the stack overflow article titled:
+	# "how do i get $(/bin/printf -6) to return -6 and not thing -6 is an option
+	# add coulmn avrage to the final output file with tab
+	printf "%d\t" $lineavg >> $outfile$$
+	# reset line sum to 0
+	linesum=0
+done
+
+# remove extra tab at end of file
+# solution found on stack overflow titled:
+# "how can i remove the last character of a file in unix"
+printf '%s\n' '$' 's/.$//' wq | ex $outfile$$
+
+# display column averages
+cat $outfile$$
+
+return 0
+}
+
+# NAME
+#   add function
+# SYNOPSIS
+#   matrix add MATRIX_LEFT MATRIX_RIGHT
+# DESCRIPTION
+#   takes two MxN matrices and adds them together to produce MxN matrix
+#   returns error if matrices don't have same dimentions
+function add(){
+# test for num of parameters
+if [ "$#" -ne 2 ]
+then
+	>&2 echo "Error - wrong number of arguments!"
+	return 1
+# test if file is readable
+elif ! [ -r $datafilepath ] || ! [ -r $datafilepath2 ]
+then
+	>&2 echo "Error - file not readable!"
+	return 1
+fi
+
+#test if matrices are same size
+# count variables
+rCount=0
+cCount=0
+
+# get the row count
+while read myLine
+do
+	# add rows 
+	rCount=$(expr $rCount + 1)
+done < $datafilepath
+
+# get the column count
+# get first line
+read firstline < "$datafilepath"
+# loop to count each integer
+for i in $firstline
+do
+	cCount=$(expr $cCount + 1)
+done
+
+# count variables
+rCount2=0
+cCount2=0
+
+# get the row count
+while read myLine
+do
+	# add rows 
+	rCount2=$(expr $rCount2 + 1)
+done < $datafilepath2
+
+# get the column count
+# get first line
+read firstline < "$datafilepath2"
+# loop to count each integer
+for i in $firstline
+do
+	cCount2=$(expr $cCount2 + 1)
+done
+
+#compare
+if [ $cCount -ne $cCount2 ]
+then
+	>&2 echo "Error - matrices don't have same dimentions!"
+	return 1
+elif [ $rCount -ne $rCount2 ]
+then
+	>&2 echo "Error - matrices don't have same dimentions!"
+	return 1
+fi
+
+#temporary files
+tempsumFile1="tempsumfile1"
+tempsumFile2="tempsumfile2"
+matrixadd="matrixaddfile"
+count=0
+
+# remove temporary files for exit, interup, hangup or terminate
+trap "rm -f $tempsumFile1$$ $tempsumFile2$$ $matrixadd$$" EXIT INT HUP TERM
+
+# convert tabs to new lines so each line is a single number
+cat $datafilepath | tr '\t' '\n' > "$tempsumFile1$$"
+cat $datafilepath2 | tr '\t' '\n' > "$tempsumFile2$$"
+
+# get number of numbers in total matrix
+numlines=`wc -l < $tempsumFile1$$`
+
+# loop through files
+for num in `seq 1 $numlines`
+do
+	# get numbers from each file
+	# help generating lines from stackoverflow question titled:
+	# "bash tool to get nth line from a file"
+	num1=`head -$num $tempsumFile1$$ | tail -1`
+	num2=`head -$num $tempsumFile2$$ | tail -1`
+	# add the numbers
+	sumN=$((num1 + num2))
+	# increment line count for output file
+	count=$(expr $count + 1)
+	# if line count is equal to coulmn count, new line
+	if [ $count -eq $cCount ]
+	then
+		printf "%d\n" $sumN >> $matrixadd$$
+		count=0
+	# tab if no new line is needed
+	else
+		printf "%d\t" $sumN >> $matrixadd$$
+	fi
+done
+# display final matrix
+cat $matrixadd$$
+
+return 0
+}
+
+# NAME
+#   multiply
+# SYNOPSIS
+#   matrix multiply MATRIX_LEFT MATRIX_RIGHT
+# DESCRIPTION
+#   Multiplies two matrices together 
+#   takes an MxN and NxP matrix and produces an MxP matrix 
+# AUTHOR
+#   Anne Harris (harranne@oregonstate.edu)
+function multiply(){
+
+# test for num of parameters
+if [ "$#" -ne 2 ]
+then
+	>&2 echo "Error - wrong number of arguments!"
+	return 1
+# test if file is readable
+elif ! [ -r $datafilepath ] || ! [ -r $datafilepath2 ]
+then
+	>&2 echo "Error - file not readable!"
+	return 1
+fi
+
+# test for correct MxN NxP dimentions
+# count variables
+r1Count=0
+c1Count=0
+r2Count=0
+c2Count=0
+
+# get the row count for first file
+while read myLine
+do
+	# add rows 
+	rCount1=$(expr $rCount1 + 1)
+done < $datafilepath
+# get the row count for second file
+while read myLine
+do
+	# add rows 
+	rCount2=$(expr $rCount2 + 1)
+done < $datafilepath2
+
+# get the column count for first file
+# get first line
+read firstline < "$datafilepath"
+# loop to count each integer
+for i in $firstline
+do
+	cCount1=$(expr $cCount1 + 1)
+done
+# get the column count for second file
+# get first line
+read firstline2 < "$datafilepath2"
+# loop to count each integer
+for j in $firstline2
+do
+	cCount2=$(expr $cCount2 + 1)
+done
+
+#compare
+if [ $cCount1 -ne $rCount2 ]
+then
+	>&2 echo "Error - files are the wrong dimentions!"
+	return 1
+fi
+
+# create temporary files
+templine1="templine1file"
+templine2="templine2file"
+temprow="temprowfile"
+finalmul="finalmulfile"
+
+# remove temporary files for exit, interup, hangup or terminate
+trap "rm -f $templine1$$ $templine2$$ $finalmul$$ $temprow$$" EXIT INT HUP TERM
+
+# temporary varialbes
+product=0
+sum=0
+count=0
+
+# read each row from first matrix
+while read row
+do
+	# put contents of row of first file into file then transform tabs to newlines
+	echo "$row" > "$temprow$$"
+	cat $temprow$$ | tr '\t' '\n' >> "$templine1$$"
+	# put contents of column of second file into temp file
+	for x in `seq 1 $cCount2`
+	do
+		# get column from second matrix
+		cut -f $x $datafilepath2 >> $templine2$$
+		# perform math for first cell of final multiplication matrix
+		for num in `seq 1 $cCount1`
+		do
+			# get numbers from each file
+			# help generating lines from stackoverflow question titled:
+			# "bash tool to get nth line from a file"
+			num1=`head -$num $templine1$$ | tail -1`
+			num2=`head -$num $templine2$$ | tail -1`
+			
+			# multiply the numbers
+			product=$((num1 * num2))
+			# add product to sum 
+			sum=$((sum + product))
+		done
+		# clear templine2
+		echo -n "" > $templine2$$
+		# increment line count for output file
+		count=$(expr $count + 1)
+		# if line count is equal to coulmn count, new line
+		if [ $count -eq $cCount2 ]
+		then
+			printf "%d\n" $sum >> $finalmul$$
+			count=0
+		# tab if no new line is needed
+		else
+			printf "%d\t" $sum >> $finalmul$$
+		fi
+		# reset sum
+		sum=0
+	done
+	
+	# clear templine1 file
+	echo -n "" > $templine1$$
+done < $datafilepath
+
+# Print final multiplication matrix
+cat $finalmul$$
+
+return 0
+}
+
+# reading the data file via stdin or command line
+# temporary data files
+datafilepath="datafile$$"
+datafilepath2="datafile2$$"
+
+# only one argument, must get data from stdin
+if [ "$#" = "1" ]
+then
+	cat > "$datafilepath"
+	$1 "$datafilepath ${@:2}"
+# two arguments, commandline
+elif [ "$#" = "2" ]
+then
+	datafilepath=$2
+	$1 "${@:2}"
+# three arguments, command line (two matrices)
+elif [ "$#" = "3" ]
+then
+	datafilepath=$2
+	datafilepath2=$3
+	$1 "${@:2}"
+fi
+
